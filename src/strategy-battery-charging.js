@@ -46,9 +46,8 @@ const node = (RED) => {
         const priceHistory = msg.payload?.priceHistory ?? []
 
         const soc = msg.payload?.soc
-        const msgMinSoc = msg.payload?.minSoc
-        const minSoc = configMinSoc !== 0 ? configMinSoc : (msgMinSoc ?? 0)
-        const maxSoc = configMaxSoc !== 100 ? configMaxSoc : 100
+        const minSoc = !isNaN(configMinSoc) ? configMinSoc : (msg.payload?.minSoc ?? 0)
+        const maxSoc = !isNaN(configMaxSoc) ? configMaxSoc : 100
 
         const strategy = calculateBatteryChargingStrategy({
           priceData,

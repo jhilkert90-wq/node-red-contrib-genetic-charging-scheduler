@@ -155,7 +155,7 @@ const calculatePeriodScore = (
   excessPvEnergyUse,
   _currentCharge,
   minCharge,
-  maxCharge_soc
+  maxCharge
 ) => {
   const {
     input,
@@ -167,8 +167,8 @@ const calculatePeriodScore = (
   } = props
   let currentCharge = _currentCharge
   const duration = period.duration / 60
-  const maxChargeCapacity = maxCharge_soc ?? batteryMaxEnergy
-  const maxCharge = Math.min(
+  const maxChargeCapacity = maxCharge ?? batteryMaxEnergy
+  const maxChargeAmount = Math.min(
     batteryMaxInputPower * duration,
     maxChargeCapacity - currentCharge
   )
@@ -185,7 +185,7 @@ const calculatePeriodScore = (
     exportPrice,
     consumption: consumption * duration,
     production: production * duration,
-    maxCharge,
+    maxCharge: maxChargeAmount,
     maxDischarge,
     excessPvEnergyUse,
     efficiency
@@ -201,7 +201,7 @@ const calculatePeriodScore = (
       exportPrice,
       consumption: consumption * duration,
       production: production * duration,
-      maxCharge,
+      maxCharge: maxChargeAmount,
       maxDischarge,
       excessPvEnergyUse,
       efficiency
