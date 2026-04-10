@@ -524,4 +524,89 @@ describe('Fitness', () => {
     })
     expect(score).toEqual(-1501.5)
   })
+
+  test('should respect maxSoc when charging', () => {
+    props.totalDuration = 120
+    props.soc = 0.5 // 50% = 0.5 kWh
+    props.maxSoc = 0.7 // 70% = 0.7 kWh
+    const periods = allPeriods(props, {
+      periods: [
+        { start: 0, duration: 60, activity: 1 },
+        { start: 60, duration: 60, activity: 1 }
+      ],
+      excessPvEnergyUse: 0
+    })
+    // SoC should not exceed maxSoc (70%)
+    for (const p of periods) {
+      expect(p.socEnd).toBeLessThanOrEqual(0.7 + 0.001)
+    }
+  })
+
+  test('should respect minSoc when discharging', () => {
+    props.totalDuration = 120
+    props.soc = 0.5 // 50% = 0.5 kWh
+    props.minSoc = 0.2 // 20% = 0.2 kWh
+    const periods = allPeriods(props, {
+      periods: [
+        { start: 0, duration: 60, activity: -1 },
+        { start: 60, duration: 60, activity: -1 }
+      ],
+      excessPvEnergyUse: 0
+    })
+    // SoC should not go below minSoc (20%)
+    for (const p of periods) {
+      expect(p.socEnd).toBeGreaterThanOrEqual(0.2 - 0.001)
+    }
+  })
+
+  test('should work with 15-minute periods', () => {
+    let now = Date.now()
+    now = now - (now % (60 * 60 * 1000))
+    props.periodMinutes = 15
+    props.totalDuration = 60
+    props.soc = 0.5
+    props.input = [
+      {
+        start: new Date(now).toString(),
+        importPrice: 1,
+        exportPrice: 1,
+        consumption: 1,
+        production: 0
+      },
+      {
+        start: new Date(now + 15 * 60 * 1000).toString(),
+        importPrice: 1,
+        exportPrice: 1,
+        consumption: 1,
+        production: 0
+      },
+      {
+        start: new Date(now + 30 * 60 * 1000).toString(),
+        importPrice: 1,
+        exportPrice: 1,
+        consumption: 1,
+        production: 0
+      },
+      {
+        start: new Date(now + 45 * 60 * 1000).toString(),
+        importPrice: 1,
+        exportPrice: 1,
+        consumption: 1,
+        production: 0
+      }
+    ]
+    const periods = allPeriods(props, {
+      periods: [
+        { start: 0, duration: 15, activity: -1 },
+        { start: 15, duration: 15, activity: -1 },
+        { start: 30, duration: 15, activity: 0 },
+        { start: 45, duration: 15, activity: 0 }
+      ],
+      excessPvEnergyUse: 0
+    })
+    expect(periods.length).toEqual(4)
+    // Each period should have 15 min duration
+    expect(periods[0].duration).toEqual(15)
+    expect(periods[1].duration).toEqual(15)
+  })
 })

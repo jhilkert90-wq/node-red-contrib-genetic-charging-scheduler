@@ -1,9 +1,10 @@
 function* allPeriodsGenerator(props, phenotype) {
-  const { batteryMaxEnergy, soc, minSoc = 0 } = props
+  const { batteryMaxEnergy, soc, minSoc = 0, maxSoc = 1 } = props
   const { excessPvEnergyUse, periods } = phenotype
 
   let currentCharge = soc * batteryMaxEnergy
   const minCharge = minSoc * batteryMaxEnergy
+  const maxCharge = maxSoc * batteryMaxEnergy
 
   const addCosts = (period) => {
     const score = calculatePeriodScore(
@@ -11,7 +12,8 @@ function* allPeriodsGenerator(props, phenotype) {
       period,
       excessPvEnergyUse,
       currentCharge,
-      minCharge
+      minCharge,
+      maxCharge
     )
     period.socStart = currentCharge / batteryMaxEnergy
     currentCharge += score[1]
@@ -152,27 +154,30 @@ const calculatePeriodScore = (
   period,
   excessPvEnergyUse,
   _currentCharge,
-  minCharge
+  minCharge,
+  maxCharge_soc
 ) => {
   const {
     input,
     batteryMaxEnergy,
     batteryMaxInputPower,
     batteryMaxOutputPower,
-    efficiency
+    efficiency,
+    periodMinutes = 60
   } = props
   let currentCharge = _currentCharge
   const duration = period.duration / 60
+  const maxChargeCapacity = maxCharge_soc ?? batteryMaxEnergy
   const maxCharge = Math.min(
     batteryMaxInputPower * duration,
-    batteryMaxEnergy - currentCharge
+    maxChargeCapacity - currentCharge
   )
   const maxDischarge = Math.min(
     batteryMaxOutputPower * duration,
     currentCharge - minCharge
   )
   const { importPrice, exportPrice, consumption, production } =
-    input[Math.floor(period.start / 60)]
+    input[Math.floor(period.start / periodMinutes)]
 
   const v = calculateIntervalScore({
     activity: period.activity,
