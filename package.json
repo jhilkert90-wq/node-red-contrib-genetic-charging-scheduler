@@ -2,7 +2,7 @@
   "name": "node-red-contrib-genetic-charging-strategy-v3",
   "version": "1.0.0",
   "description": "A Node-RED contrib node for calculating optimal battery charging schedules using genetic algorithms. Supports solar production forecasts, consumption forecasts, flexible energy pricing, and SoC-aware scheduling.",
-  "main": "dist/main.js",
+  "main": "src/strategy-battery-charging.js",
   "type": "commonjs",
   "keywords": [
     "node-red",

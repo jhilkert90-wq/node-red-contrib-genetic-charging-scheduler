@@ -163,7 +163,7 @@ npm login
 npm publish --access public
 ```
 
-npm will publish everything listed in the `"files"` field of `package.json` (`src/*` and `package.json`).
+npm will publish everything listed in the `"files"` field of `package.json`. Before publishing, make sure that list includes the file referenced by the package `"main"` entry so the published package has a valid entrypoint.
 
 > **Note:** npm package names must be lowercase. This package uses `node-red-contrib-genetic-charging-strategy-v3`.
 
