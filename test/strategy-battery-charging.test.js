@@ -1,6 +1,20 @@
 const node = require('../src/strategy-battery-charging')
 const helper = require('node-red-node-test-helper')
 
+describe('resolveSocBounds', () => {
+  it('falls back to message values when config bounds are not set', () => {
+    expect(node.resolveSocBounds(NaN, NaN, { minSoc: '15', maxSoc: '80' }))
+      .toEqual({ minSoc: 15, maxSoc: 80 })
+  })
+
+  it('clamps bounds and keeps maxSoc above minSoc', () => {
+    expect(node.resolveSocBounds(120, -10)).toEqual({
+      minSoc: 100,
+      maxSoc: 100
+    })
+  })
+})
+
 describe('Battery charging strategy Node', () => {
   afterEach(() => {
     helper.unload()

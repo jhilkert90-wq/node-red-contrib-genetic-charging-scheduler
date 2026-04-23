@@ -230,6 +230,15 @@ const findForecastValue = (forecast, time, periodMinutes) => {
   return undefined
 }
 
+const floorDateToLocalPeriod = (time, periodMinutes) => {
+  const date = new Date(time)
+  date.setSeconds(0, 0)
+  date.setMinutes(
+    Math.floor(date.getMinutes() / periodMinutes) * periodMinutes
+  )
+  return date
+}
+
 const mergeInput = (config) => {
   const {
     averageConsumption,
@@ -240,8 +249,7 @@ const mergeInput = (config) => {
   } = config
 
   const periodMinutes = detectPriceInterval(priceData)
-  let now = Date.now()
-  now = new Date(now - (now % (periodMinutes * 60 * 1000)))
+  const now = floorDateToLocalPeriod(Date.now(), periodMinutes)
   return {
     periodMinutes,
     data: priceData
@@ -325,5 +333,6 @@ module.exports = {
   fitnessFunction,
   calculateBatteryChargingStrategy,
   detectPriceInterval,
-  findForecastValue
+  findForecastValue,
+  floorDateToLocalPeriod
 }

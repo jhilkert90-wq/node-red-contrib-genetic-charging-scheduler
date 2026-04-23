@@ -456,6 +456,83 @@ describe('Fitness - calculateScore', () => {
         (period.duration / 60) * -props.batteryMaxOutputPower
       )
     })
+
+    test('should not charge when current charge is already above max charge', () => {
+      const period = { start: 0, duration: 60, activity: 1 }
+      const excessPvEnergyUse = 0
+      const noLoadProps = {
+        ...props,
+        input: [
+          {
+            ...props.input[0],
+            consumption: 0,
+            production: 0
+          }
+        ]
+      }
+      const score = calculatePeriodScore(
+        noLoadProps,
+        period,
+        excessPvEnergyUse,
+        0.8,
+        0,
+        0.7
+      )
+
+      expect(score[0]).toBe(0)
+      expect(score[1]).toBe(0)
+    })
+
+    test('should not discharge when current charge is already below min charge', () => {
+      const period = { start: 0, duration: 60, activity: -1 }
+      const excessPvEnergyUse = 0
+      const noLoadProps = {
+        ...dischargeProps,
+        input: [
+          {
+            ...dischargeProps.input[0],
+            consumption: 0,
+            production: 0
+          }
+        ]
+      }
+      const score = calculatePeriodScore(
+        noLoadProps,
+        period,
+        excessPvEnergyUse,
+        0.1,
+        0.2
+      )
+
+      expect(score[0]).toBe(0)
+      expect(score[1]).toBe(0)
+    })
+
+    test('should cap max charge capacity at battery max energy', () => {
+      const period = { start: 0, duration: 60, activity: 1 }
+      const excessPvEnergyUse = 0
+      const noLoadProps = {
+        ...props,
+        input: [
+          {
+            ...props.input[0],
+            consumption: 0,
+            production: 0
+          }
+        ]
+      }
+      const score = calculatePeriodScore(
+        noLoadProps,
+        period,
+        excessPvEnergyUse,
+        1,
+        0,
+        2
+      )
+
+      expect(score[0]).toBe(0)
+      expect(score[1]).toBe(0)
+    })
   })
 })
 

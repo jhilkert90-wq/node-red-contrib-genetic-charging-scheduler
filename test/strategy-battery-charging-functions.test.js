@@ -5,7 +5,8 @@ const {
   calculateBatteryChargingStrategy,
   crossoverFunction,
   detectPriceInterval,
-  findForecastValue
+  findForecastValue,
+  floorDateToLocalPeriod
 } = require('../src/strategy-battery-charging-functions')
 
 describe('Util functions', () => {
@@ -137,45 +138,6 @@ describe('Calculate', () => {
 
     console.log(`best: ${strategy.best.cost}`)
     console.log(`no battery: ${strategy.noBattery.cost}`)
-
-    const values = bestSchedule
-      .filter((e) => e.activity !== 0)
-      .reduce((total, e) => {
-        const toTimeString = (date) => {
-          const HH = date.getHours().toString().padStart(2, '0')
-          const mm = date.getMinutes().toString().padStart(2, '0')
-          return `${HH}:${mm}`
-        }
-
-        const touPattern = (start, end, charge) => {
-          let pattern = toTimeString(start)
-          pattern += '-'
-          pattern += toTimeString(end)
-          pattern += '/'
-          pattern += start.getDay()
-          pattern += '/'
-          pattern += charge
-          return pattern
-        }
-
-        const startDate = new Date(e.start)
-        const endDate = new Date(startDate.getTime() + (e.duration - 1) * 60000)
-        const charge = e.activity === 1 ? '+' : '-'
-        if (startDate.getDay() === endDate.getDay()) {
-          total.push(touPattern(startDate, endDate, charge))
-        } else {
-          const endDateDay1 = new Date(startDate)
-          endDateDay1.setHours(23)
-          endDateDay1.setMinutes(59)
-          total.push(touPattern(startDate, endDateDay1, charge))
-
-          const startDateDay2 = new Date(endDate)
-          startDateDay2.setHours(0)
-          startDateDay2.setMinutes(0)
-          total.push(touPattern(startDateDay2, endDate, charge))
-        }
-        return total
-      }, [])
   })
 })
 
@@ -227,6 +189,20 @@ describe('findForecastValue', () => {
   })
 })
 
+describe('floorDateToLocalPeriod', () => {
+  test('should round down using local minutes within the current hour', () => {
+    const rounded = floorDateToLocalPeriod(
+      new Date(2024, 0, 1, 10, 22, 33, 444),
+      15
+    )
+
+    expect(rounded.getHours()).toBe(10)
+    expect(rounded.getMinutes()).toBe(15)
+    expect(rounded.getSeconds()).toBe(0)
+    expect(rounded.getMilliseconds()).toBe(0)
+  })
+})
+
 describe('Calculate with 15-minute prices', () => {
   beforeAll(() => {
     const now = new Date()
@@ -239,7 +215,7 @@ describe('Calculate with 15-minute prices', () => {
   test('should generate 15-minute schedule from 15-minute prices', () => {
     let now = Date.now()
     now = now - (now % (60 * 60 * 1000))
-    // 4 x 15min prices for 1 hour
+    // 8 x 15min prices for 2 hours
     const priceData = [
       { importPrice: 1, exportPrice: 0, start: new Date(now).toString() },
       { importPrice: 1, exportPrice: 0, start: new Date(now + 15 * 60 * 1000).toString() },
