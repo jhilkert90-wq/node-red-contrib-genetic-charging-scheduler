@@ -3,7 +3,10 @@ const { mockRandomForEach } = require('jest-mock-random')
 const {
   clamp,
   calculateBatteryChargingStrategy,
-  crossoverFunction
+  crossoverFunction,
+  detectPriceInterval,
+  findForecastValue,
+  floorDateToLocalPeriod
 } = require('../src/strategy-battery-charging-functions')
 
 describe('Util functions', () => {
@@ -135,44 +138,257 @@ describe('Calculate', () => {
 
     console.log(`best: ${strategy.best.cost}`)
     console.log(`no battery: ${strategy.noBattery.cost}`)
+  })
+})
 
-    const values = bestSchedule
-      .filter((e) => e.activity !== 0)
-      .reduce((total, e) => {
-        const toTimeString = (date) => {
-          const HH = date.getHours().toString().padStart(2, '0')
-          const mm = date.getMinutes().toString().padStart(2, '0')
-          return `${HH}:${mm}`
-        }
+describe('detectPriceInterval', () => {
+  test('should return 60 for single price entry', () => {
+    expect(detectPriceInterval([{ start: new Date().toString() }])).toBe(60)
+  })
 
-        const touPattern = (start, end, charge) => {
-          let pattern = toTimeString(start)
-          pattern += '-'
-          pattern += toTimeString(end)
-          pattern += '/'
-          pattern += start.getDay()
-          pattern += '/'
-          pattern += charge
-          return pattern
-        }
+  test('should return 60 for hourly prices', () => {
+    const now = Date.now()
+    const priceData = [
+      { start: new Date(now).toString() },
+      { start: new Date(now + 60 * 60 * 1000).toString() }
+    ]
+    expect(detectPriceInterval(priceData)).toBe(60)
+  })
 
-        const startDate = new Date(e.start)
-        const endDate = new Date(startDate.getTime() + (e.duration - 1) * 60000)
-        const charge = e.activity === 1 ? '+' : '-'
-        if (startDate.getDay() === endDate.getDay()) {
-          total.push(touPattern(startDate, endDate, charge))
-        } else {
-          const endDateDay1 = new Date(startDate)
-          endDateDay1.setHours(23)
-          endDateDay1.setMinutes(59)
-          total.push(touPattern(startDate, endDateDay1, charge))
+  test('should return 15 for 15-minute prices', () => {
+    const now = Date.now()
+    const priceData = [
+      { start: new Date(now).toString() },
+      { start: new Date(now + 15 * 60 * 1000).toString() }
+    ]
+    expect(detectPriceInterval(priceData)).toBe(15)
+  })
+})
 
-          const startDateDay2 = new Date(endDate)
-          startDateDay2.setHours(0)
-          startDateDay2.setMinutes(0)
-          total.push(touPattern(startDateDay2, endDate, charge))
-        }
-        return total
-      }, [])
+describe('findForecastValue', () => {
+  test('should find exact match', () => {
+    const now = Date.now()
+    const forecast = [{ start: new Date(now).toString(), value: 1.5 }]
+    expect(findForecastValue(forecast, new Date(now).toString(), 60)).toBe(1.5)
+  })
+
+  test('should interpolate hourly forecast for 15-min period', () => {
+    let now = Date.now()
+    now = now - (now % (60 * 60 * 1000))
+    const forecast = [{ start: new Date(now).toString(), value: 2.0 }]
+    // Query for 15 minutes into the hour - should find the hourly value
+    const quarterTime = new Date(now + 15 * 60 * 1000).toString()
+    expect(findForecastValue(forecast, quarterTime, 15)).toBe(2.0)
+  })
+
+  test('should return undefined when no match found', () => {
+    const now = Date.now()
+    const forecast = [{ start: new Date(now).toString(), value: 1.5 }]
+    const futureTime = new Date(now + 2 * 60 * 60 * 1000).toString()
+    expect(findForecastValue(forecast, futureTime, 60)).toBeUndefined()
+  })
+})
+
+describe('floorDateToLocalPeriod', () => {
+  test('should round down using local minutes within the current hour', () => {
+    const rounded = floorDateToLocalPeriod(
+      new Date(2024, 0, 1, 10, 22, 33, 444),
+      15
+    )
+
+    expect(rounded.getHours()).toBe(10)
+    expect(rounded.getMinutes()).toBe(15)
+    expect(rounded.getSeconds()).toBe(0)
+    expect(rounded.getMilliseconds()).toBe(0)
+  })
+})
+
+describe('Calculate with 15-minute prices', () => {
+  beforeAll(() => {
+    const now = new Date()
+    now.setHours(now.getHours(), 0, 0, 0)
+    jest
+      .useFakeTimers()
+      .setSystemTime(now)
+  })
+
+  test('should generate 15-minute schedule from 15-minute prices', () => {
+    let now = Date.now()
+    now = now - (now % (60 * 60 * 1000))
+    // 8 x 15min prices for 2 hours
+    const priceData = [
+      { importPrice: 1, exportPrice: 0, start: new Date(now).toString() },
+      { importPrice: 1, exportPrice: 0, start: new Date(now + 15 * 60 * 1000).toString() },
+      { importPrice: 500, exportPrice: 0, start: new Date(now + 30 * 60 * 1000).toString() },
+      { importPrice: 500, exportPrice: 0, start: new Date(now + 45 * 60 * 1000).toString() },
+      { importPrice: 500, exportPrice: 0, start: new Date(now + 60 * 60 * 1000).toString() },
+      { importPrice: 500, exportPrice: 0, start: new Date(now + 75 * 60 * 1000).toString() },
+      { importPrice: 500, exportPrice: 0, start: new Date(now + 90 * 60 * 1000).toString() },
+      { importPrice: 500, exportPrice: 0, start: new Date(now + 105 * 60 * 1000).toString() }
+    ]
+    // Hourly consumption forecast (should be interpolated to 15min)
+    const consumptionForecast = [
+      { start: new Date(now).toString(), value: 1.5 },
+      { start: new Date(now + 60 * 60 * 1000).toString(), value: 1.5 }
+    ]
+    const productionForecast = priceData.map((v) => {
+      return { start: v.start, value: 0 }
+    })
+
+    const config = {
+      priceData,
+      populationSize: 50,
+      generations: 200,
+      mutationRate: 0.03,
+      batteryMaxEnergy: 3,
+      batteryMaxOutputPower: 3,
+      batteryMaxInputPower: 3,
+      averageConsumption: 1.5,
+      averageProduction: 0,
+      productionForecast,
+      consumptionForecast,
+      soc: 0,
+      excessPvEnergyUse: 0,
+      efficiency: 1,
+      batteryCost: 0
+    }
+    const strategy = calculateBatteryChargingStrategy(config)
+    const bestSchedule = strategy.best.schedule
+
+    // Should have 8 periods (one per 15-min slot)
+    expect(bestSchedule.length).toEqual(8)
+    // Each period should be 15 minutes
+    expect(bestSchedule[1].duration).toEqual(15)
+    // First two periods should charge (cheap price)
+    expect(bestSchedule[0].activity).toEqual(1)
+    expect(bestSchedule[1].activity).toEqual(1)
+  })
+
+  test('should interpolate hourly consumption to 15-min periods', () => {
+    let now = Date.now()
+    now = now - (now % (60 * 60 * 1000))
+    const priceData = [
+      { importPrice: 1, exportPrice: 0, start: new Date(now).toString() },
+      { importPrice: 1, exportPrice: 0, start: new Date(now + 15 * 60 * 1000).toString() },
+      { importPrice: 1, exportPrice: 0, start: new Date(now + 30 * 60 * 1000).toString() },
+      { importPrice: 1, exportPrice: 0, start: new Date(now + 45 * 60 * 1000).toString() }
+    ]
+    // Only hourly consumption forecast
+    const consumptionForecast = [
+      { start: new Date(now).toString(), value: 2.0 }
+    ]
+    const productionForecast = []
+
+    const config = {
+      priceData,
+      populationSize: 10,
+      generations: 10,
+      mutationRate: 0.03,
+      batteryMaxEnergy: 5,
+      batteryMaxOutputPower: 3,
+      batteryMaxInputPower: 3,
+      averageConsumption: 1.0,
+      averageProduction: 0,
+      productionForecast,
+      consumptionForecast,
+      soc: 0.5,
+      excessPvEnergyUse: 0,
+      efficiency: 1,
+      batteryCost: 0
+    }
+    const strategy = calculateBatteryChargingStrategy(config)
+    expect(strategy.best.schedule.length).toEqual(4)
+    // All periods should be 15 min
+    expect(strategy.best.schedule[1].duration).toEqual(15)
+  })
+})
+
+describe('Calculate with min/max SoC', () => {
+  beforeAll(() => {
+    const now = new Date()
+    now.setHours(now.getHours(), 0, 0, 0)
+    jest
+      .useFakeTimers()
+      .setSystemTime(now)
+  })
+
+  test('should respect maxSoc - battery should not charge above maxSoc', () => {
+    let now = Date.now()
+    now = now - (now % (60 * 60 * 1000))
+    const priceData = [
+      { importPrice: 1, exportPrice: 0, start: new Date(now).toString() },
+      { importPrice: 1, exportPrice: 0, start: new Date(now + 60 * 60 * 1000).toString() }
+    ]
+    const consumptionForecast = priceData.map((v) => {
+      return { start: v.start, value: 0 }
+    })
+    const productionForecast = priceData.map((v) => {
+      return { start: v.start, value: 0 }
+    })
+
+    const config = {
+      priceData,
+      populationSize: 50,
+      generations: 200,
+      mutationRate: 0.03,
+      batteryMaxEnergy: 10, // 10kWh nominal
+      batteryMaxOutputPower: 5,
+      batteryMaxInputPower: 5,
+      averageConsumption: 0,
+      averageProduction: 0,
+      productionForecast,
+      consumptionForecast,
+      soc: 0.5, // 50% = 5kWh
+      excessPvEnergyUse: 0,
+      efficiency: 1,
+      batteryCost: 0,
+      maxSoc: 0.8 // max 80% = 8kWh
+    }
+    const strategy = calculateBatteryChargingStrategy(config)
+
+    // SoC should never exceed 80%
+    for (const period of strategy.best.schedule) {
+      expect(period.socEnd).toBeLessThanOrEqual(80.01) // small tolerance for floating point
+    }
+  })
+
+  test('should respect minSoc - battery should not discharge below minSoc', () => {
+    let now = Date.now()
+    now = now - (now % (60 * 60 * 1000))
+    const priceData = [
+      { importPrice: 500, exportPrice: 0, start: new Date(now).toString() },
+      { importPrice: 500, exportPrice: 0, start: new Date(now + 60 * 60 * 1000).toString() }
+    ]
+    const consumptionForecast = priceData.map((v) => {
+      return { start: v.start, value: 2 }
+    })
+    const productionForecast = priceData.map((v) => {
+      return { start: v.start, value: 0 }
+    })
+
+    const config = {
+      priceData,
+      populationSize: 50,
+      generations: 200,
+      mutationRate: 0.03,
+      batteryMaxEnergy: 10, // 10kWh nominal
+      batteryMaxOutputPower: 5,
+      batteryMaxInputPower: 5,
+      averageConsumption: 2,
+      averageProduction: 0,
+      productionForecast,
+      consumptionForecast,
+      soc: 0.5, // 50% = 5kWh
+      excessPvEnergyUse: 0,
+      efficiency: 1,
+      batteryCost: 0,
+      minSoc: 0.2 // min 20% = 2kWh
+    }
+    const strategy = calculateBatteryChargingStrategy(config)
+
+    // SoC should never go below 20%
+    for (const period of strategy.best.schedule) {
+      expect(period.socEnd).toBeGreaterThanOrEqual(19.99) // small tolerance for floating point
+    }
   })
 })

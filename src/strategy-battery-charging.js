@@ -2,10 +2,41 @@ const {
   calculateBatteryChargingStrategy
 } = require('./strategy-battery-charging-functions')
 
+const clamp = (value, min, max) => {
+  return Math.min(Math.max(value, min), max)
+}
+
+const parseSocValue = (value) => {
+  const parsed = parseFloat(value)
+  return Number.isFinite(parsed) ? parsed : undefined
+}
+
+const resolveSocBounds = (configMinSoc, configMaxSoc, payload = {}) => {
+  const minSoc = clamp(
+    Number.isFinite(configMinSoc)
+      ? configMinSoc
+      : (parseSocValue(payload.minSoc) ?? 0),
+    0,
+    100
+  )
+  const maxSoc = Math.max(
+    minSoc,
+    clamp(
+      Number.isFinite(configMaxSoc)
+        ? configMaxSoc
+        : (parseSocValue(payload.maxSoc) ?? 100),
+      0,
+      100
+    )
+  )
+
+  return { minSoc, maxSoc }
+}
+
 const node = (RED) => {
   RED.nodes.registerType(
     'strategy-genetic-charging',
-    function callback(config) {
+    function callback (config) {
       config.populationSize = parseInt(config.populationSize)
       config.generations = parseInt(config.generations)
       config.mutationRate = parseInt(config.mutationRate)
@@ -17,6 +48,8 @@ const node = (RED) => {
       config.batteryCost = parseFloat(config.batteryCost ?? 0)
       config.efficiency = parseInt(config.efficiency)
       config.minPrice = parseFloat(config.minPrice ?? 0)
+      config.minSoc = parseFloat(config.minSoc)
+      config.maxSoc = parseFloat(config.maxSoc)
       RED.nodes.createNode(this, config)
 
       const {
@@ -30,7 +63,9 @@ const node = (RED) => {
         excessPvEnergyUse, // 0=Feed to grid, 1=Charge
         efficiency,
         batteryCost, // battery price / (cycles * capacity)
-        minPrice
+        minPrice,
+        minSoc: configMinSoc,
+        maxSoc: configMaxSoc
       } = config
 
       this.on('input', async (msg, send, done) => {
@@ -42,7 +77,11 @@ const node = (RED) => {
         const priceHistory = msg.payload?.priceHistory ?? []
 
         const soc = msg.payload?.soc
-        const minSoc = msg.payload?.minSoc ?? 0
+        const { minSoc, maxSoc } = resolveSocBounds(
+          configMinSoc,
+          configMaxSoc,
+          msg.payload
+        )
 
         const strategy = calculateBatteryChargingStrategy({
           priceData,
@@ -60,6 +99,7 @@ const node = (RED) => {
           batteryCost,
           efficiency: efficiency / 100,
           minSoc: minSoc / 100,
+          maxSoc: maxSoc / 100,
           minPrice,
           chargingHistory,
           priceHistory
@@ -89,5 +129,7 @@ const node = (RED) => {
     }
   )
 }
+
+node.resolveSocBounds = resolveSocBounds
 
 module.exports = node

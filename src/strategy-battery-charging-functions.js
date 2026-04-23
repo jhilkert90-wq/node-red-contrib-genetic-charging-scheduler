@@ -90,7 +90,8 @@ const generatePopulation = (props) => {
     minPrice,
     batteryEnergyCost,
     batteryCost,
-    avgImportPrice
+    avgImportPrice,
+    periodMinutes = 60
   } = props
   const population = []
 
@@ -112,11 +113,15 @@ const generatePopulation = (props) => {
 
       if (j === 0) {
         const now = new Date()
-        gene.start = now.getMinutes()
-        gene.duration = 60 - gene.start
+        const minuteOffset =
+          periodMinutes === 15
+            ? now.getMinutes() % 15
+            : now.getMinutes()
+        gene.start = minuteOffset
+        gene.duration = periodMinutes - minuteOffset
       } else {
-        gene.start = j * 60
-        gene.duration = 60
+        gene.start = j * periodMinutes
+        gene.duration = periodMinutes
       }
 
       timePeriods.push(gene)
@@ -196,6 +201,44 @@ const batteryEnergyCostFromHistory = (config) => {
   return cost / charged
 }
 
+const detectPriceInterval = (priceData) => {
+  if (priceData.length < 2) return 60
+  const first = new Date(priceData[0].start).getTime()
+  const second = new Date(priceData[1].start).getTime()
+  const diffMinutes = (second - first) / (60 * 1000)
+  return diffMinutes === 15 ? 15 : 60
+}
+
+const findForecastValue = (forecast, time, periodMinutes) => {
+  const t = new Date(time).getTime()
+
+  // Try exact match first
+  const exact = forecast.find(
+    (c) => new Date(c.start).getTime() === t
+  )
+  if (exact) return exact.value
+
+  // If period is 15min, try to find the hourly forecast that covers this period
+  if (periodMinutes === 15) {
+    const hourStart = t - (t % (60 * 60 * 1000))
+    const hourly = forecast.find(
+      (c) => new Date(c.start).getTime() === hourStart
+    )
+    if (hourly) return hourly.value
+  }
+
+  return undefined
+}
+
+const floorDateToLocalPeriod = (time, periodMinutes) => {
+  const date = new Date(time)
+  date.setSeconds(0, 0)
+  date.setMinutes(
+    Math.floor(date.getMinutes() / periodMinutes) * periodMinutes
+  )
+  return date
+}
+
 const mergeInput = (config) => {
   const {
     averageConsumption,
@@ -205,46 +248,49 @@ const mergeInput = (config) => {
     productionForecast
   } = config
 
-  let now = Date.now()
-  now = new Date(now - (now % (60 * 60 * 1000)))
-  return priceData
-    .filter((v) => new Date(v.start).getTime() >= now.getTime())
-    .map((v) => {
-      return {
-        start: new Date(v.start),
-        importPrice: v.importPrice ?? v.value,
-        exportPrice: v.exportPrice ?? 0,
-        consumption:
-          consumptionForecast.find(
-            (c) => new Date(c.start).getTime() === new Date(v.start).getTime()
-          )?.value ??
-          averageConsumption ??
-          0,
-        production:
-          productionForecast.find(
-            (p) => new Date(p.start).getTime() === new Date(v.start).getTime()
-          )?.value ??
-          averageProduction ??
-          0
-      }
-    })
+  const periodMinutes = detectPriceInterval(priceData)
+  const now = floorDateToLocalPeriod(Date.now(), periodMinutes)
+  return {
+    periodMinutes,
+    data: priceData
+      .filter((v) => new Date(v.start).getTime() >= now.getTime())
+      .map((v) => {
+        return {
+          start: new Date(v.start),
+          importPrice: v.importPrice ?? v.value,
+          exportPrice: v.exportPrice ?? 0,
+          consumption:
+            findForecastValue(consumptionForecast, v.start, periodMinutes) ??
+            averageConsumption ??
+            0,
+          production:
+            findForecastValue(productionForecast, v.start, periodMinutes) ??
+            averageProduction ??
+            0
+        }
+      })
+  }
 }
 
 const calculateBatteryChargingStrategy = (config) => {
   const { generations } = config
 
-  const input = mergeInput(config)
+  const merged = mergeInput(config)
+  const input = merged.data
+  const periodMinutes = merged.periodMinutes
   if (input === undefined || input.length === 0) return {}
 
   const batteryEnergyCost = batteryEnergyCostFromHistory(config)
 
   // day ahead prices get announced at 13:00, then we get them until 23:00 next day, so 35h is max
-  const numberOfPricePeriods = Math.min(35, input.length)
+  const maxPeriods = Math.floor((35 * 60) / periodMinutes)
+  const numberOfPricePeriods = Math.min(maxPeriods, input.length)
 
   const props = {
     ...config,
     input,
-    totalDuration: numberOfPricePeriods * 60,
+    periodMinutes,
+    totalDuration: numberOfPricePeriods * periodMinutes,
     numberOfPricePeriods,
     avgImportPrice:
       input.reduce((val, i) => val + i.importPrice, 0) / input.length,
@@ -285,5 +331,8 @@ module.exports = {
   crossoverFunction,
   mutationFunction,
   fitnessFunction,
-  calculateBatteryChargingStrategy
+  calculateBatteryChargingStrategy,
+  detectPriceInterval,
+  findForecastValue,
+  floorDateToLocalPeriod
 }
