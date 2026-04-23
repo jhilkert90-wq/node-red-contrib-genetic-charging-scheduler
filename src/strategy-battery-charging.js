@@ -35,7 +35,7 @@ const resolveSocBounds = (configMinSoc, configMaxSoc, payload = {}) => {
 
 const node = (RED) => {
   RED.nodes.registerType(
-    'strategy-genetic-charging',
+    'strategy-genetic-charging-v3',
     function callback (config) {
       config.populationSize = parseInt(config.populationSize)
       config.generations = parseInt(config.generations)

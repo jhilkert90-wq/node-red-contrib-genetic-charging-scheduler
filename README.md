@@ -1,4 +1,4 @@
-# genetic-charging-scheduler
+# node-red-contrib-genetic-charging-strategy-v3
 
 Original project is from https://github.com/enell/node-red-contrib-genetic-charging-scheduler, most of the code is from that repository.
 
@@ -8,9 +8,44 @@ Be aware, that some countries do not allow to sell energy to the grid. In that c
 
 # Installation
 
-TODO
+## Option A – via npm (recommended)
+
+```bash
+# In your Node-RED user directory (e.g. ~/.node-red)
+npm install node-red-contrib-genetic-charging-strategy-v3
+```
+
+Restart Node-RED. The node appears in the **Genetic Charging Scheduler** palette category.
+
+## Option B – via Node-RED Palette Manager
+
+Go to ☰ Menu → **Manage Palette** → **Install** tab → search for `node-red-contrib-genetic-charging-strategy-v3`.
+
+## Option C – local development install
+
+```bash
+cd ~/.node-red
+npm install /path/to/this/repo
+```
 
 # Usage
+
+## Using the Node in a Flow
+
+1. **Find the node** in the palette under the **Genetic Charging Scheduler** category, labelled "Battery charging schedule".
+2. **Drag it into a flow.**
+3. **Configure the node** (double-click to open):
+   - Battery capacity (kWh), min/max SoC %, max input/output power (kW)
+   - Average consumption per hour (kW)
+   - Excessive PV Energy use: Grid feed-in vs Charge battery
+   - Battery cost per kWh, system efficiency %, minimum price to force charge
+   - Genetic algorithm tuning: population size, generations, mutation chance %
+4. **Wire an Inject node** that sends `msg.payload` containing at minimum:
+   ```json
+   { "soc": 74, "priceData": [{ "value": 0.25, "start": "2024-01-01T00:00:00Z" }] }
+   ```
+   Optionally include `consumptionForecast`, `productionForecast`, `chargingHistory`, `priceHistory`, `minSoc`, `maxSoc`.
+5. **Wire the output** to a Debug node or downstream automation. The output `msg.payload` will contain `schedule`, `cost`, `excessPvEnergyUse`, and `noBattery`.
 
 You need to at least provide the current SoC of the battery and a list of prices for the next hours, so a schedule can be generated, so a minimum example would for example look like this:
 
@@ -105,3 +140,33 @@ The output looks like this:
 `noBattery` provides information about the prices you would have to pay without a battery.
 
 The output of the schedules can be used, to generate schedules to control the battery. `discharging` means the battery will discharge with the provided amount of energy during that time. If you provided `exportPrice: 0` as input, it just means the battery is discharging due to the consumption during that time. If an exportPrice is provided, it could also mean you have to discharge during that timeslot for earning money. `idle` can indicate, that the prices are low, but it doesn't make sense to charge (either as battery is already full, or as it doesn't make sense to charge and discharge with the same price). `charging` means that the battery should be charged from grid with the provided amount of energy.
+
+# Publishing to npm
+
+## 1. Development setup
+
+```bash
+yarn install
+yarn test
+./node_modules/.bin/eslint src test/*.js
+```
+
+## 2. Log in to npm
+
+```bash
+npm login
+```
+
+## 3. Publish
+
+```bash
+npm publish --access public
+```
+
+npm will publish everything listed in the `"files"` field of `package.json`. Before publishing, make sure that list includes the file referenced by the package `"main"` entry so the published package has a valid entrypoint.
+
+> **Note:** npm package names must be lowercase. This package uses `node-red-contrib-genetic-charging-strategy-v3`.
+
+## 4. Register on the Node-RED Flows Library (optional)
+
+After publishing to npm, submit the package to [flows.nodered.org](https://flows.nodered.org/add/node) so it appears in the Node-RED Palette Manager search. The `"node-red"` section in `package.json` and the `"node-red"` keyword are both required for listing.

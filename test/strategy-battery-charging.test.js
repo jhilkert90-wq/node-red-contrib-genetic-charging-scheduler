@@ -24,7 +24,7 @@ describe('Battery charging strategy Node', () => {
     const flow = [
       {
         id: 'n1',
-        type: 'strategy-genetic-charging',
+        type: 'strategy-genetic-charging-v3',
         name: 'test name'
       }
     ]
@@ -40,7 +40,7 @@ describe('Battery charging strategy Node', () => {
     const flow = [
       {
         id: 'n1',
-        type: 'strategy-genetic-charging',
+        type: 'strategy-genetic-charging-v3',
         name: 'test name',
         populationSize: 10,
         numberOfPricePeriods: 3,
@@ -91,7 +91,7 @@ describe('Battery charging strategy Node', () => {
     const flow = [
       {
         id: 'n1',
-        type: 'strategy-genetic-charging',
+        type: 'strategy-genetic-charging-v3',
         name: 'test name',
         populationSize: 10,
         numberOfPricePeriods: 3,
@@ -229,7 +229,7 @@ describe('Battery charging strategy Node', () => {
     const flow = [
       {
         id: 'n1',
-        type: 'strategy-genetic-charging',
+        type: 'strategy-genetic-charging-v3',
         name: 'test name',
         wires: [['n2']]
       },
@@ -252,7 +252,7 @@ describe('Battery charging strategy Node', () => {
     const flow = [
       {
         id: 'n1',
-        type: 'strategy-genetic-charging',
+        type: 'strategy-genetic-charging-v3',
         name: 'test name',
         populationSize: 50,
         generations: 150,
@@ -300,7 +300,7 @@ describe('Battery charging strategy Node', () => {
     const flow = [
       {
         id: 'n1',
-        type: 'strategy-genetic-charging',
+        type: 'strategy-genetic-charging-v3',
         name: 'test name',
         populationSize: 50,
         numberOfPricePeriods: 14,
